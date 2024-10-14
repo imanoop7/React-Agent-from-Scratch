@@ -1,7 +1,7 @@
-from tavily import TavilyClient
 import os
 import wikipedia
-from duckduckgo_search import DDGS
+import requests
+from bs4 import BeautifulSoup
 
 class Tool:
     def __init__(self, func):
@@ -10,32 +10,23 @@ class Tool:
     def run(self, query):
         return self.func(query)
 
-# def tavily_search(query: str) -> str:
-#     tavily_api_key = os.getenv("TAVILY_API_KEY")
-#     if not tavily_api_key:
-#         return "Error: Tavily API key not found. Please set the TAVILY_API_KEY environment variable."
-    
-#     tavily_client = TavilyClient(api_key=tavily_api_key)
-#     search_result = tavily_client.search(query)
-    
-#     formatted_result = "Search Results:\n"
-#     for i, result in enumerate(search_result['results'][:3], 1):
-#         formatted_result += f"{i}. {result['title']}\n   {result['url']}\n   {result['content'][:200]}...\n\n"
-    
-#     return formatted_result
-
 def duckduckgo_search(query: str) -> str:
     try:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=3))
+        url = f"https://html.duckduckgo.com/html/?q={query}"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = soup.find_all('div', class_='result__body')
         
         formatted_result = "Search Results:\n"
-        for i, result in enumerate(results, 1):
-            formatted_result += f"{i}. {result['title']}\n   {result['href']}\n   {result['body'][:200]}...\n\n"
+        for i, result in enumerate(results[:3], 1):
+            title = result.find('a', class_='result__a').text
+            link = result.find('a', class_='result__a')['href']
+            snippet = result.find('a', class_='result__snippet').text
+            formatted_result += f"{i}. {title}\n   {link}\n   {snippet[:200]}...\n\n"
         
         return formatted_result
     except Exception as e:
-        return f"An error occurred while searching DuckDuckGo: {str(e)}"
+        return f"An error occurred while searching: {str(e)}"
 
 def wikipedia_search(query: str) -> str:
     try:

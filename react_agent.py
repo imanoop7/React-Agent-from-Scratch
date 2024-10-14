@@ -4,17 +4,20 @@ from typing import List, Dict, Any
 from google.api_core import exceptions as google_exceptions
 
 class ReActAgent:
-    def __init__(self, model):
+    def __init__(self, model, callback=None):
         self.model = model
         self.tools: Dict[str, Any] = {}
         self.messages: List[Dict[str, str]] = []
         self.max_iterations = 5
+        self.callback = callback
 
     def register_tool(self, name: str, func: callable):
         self.tools[name] = func
 
     def add_message(self, role: str, content: str):
         self.messages.append({"role": role, "content": content})
+        if self.callback:
+            self.callback({"type": "message", "role": role, "content": content})
 
     def get_chat_history(self):
         return "\n".join([f"{m['role']}: {m['content']}" for m in self.messages])
@@ -24,39 +27,36 @@ class ReActAgent:
         
         for iteration in range(self.max_iterations):
             prompt = self.create_prompt(query)
-            print(f"Iteration {iteration + 1}: Sending prompt to model")
+            if self.callback:
+                self.callback({"type": "iteration", "number": iteration + 1})
             
             for attempt in range(max_retries):
                 try:
                     response = self.model.generate_content(prompt)
                     response_text = response.text
-                    print(f"Model response: {response_text}")
+                    if self.callback:
+                        self.callback({"type": "model_response", "content": response_text})
                     break
                 except google_exceptions.GoogleAPIError as e:
-                    print(f"API Error on attempt {attempt + 1}: {str(e)}")
+                    if self.callback:
+                        self.callback({"type": "error", "content": str(e)})
                     if attempt == max_retries - 1:
                         raise
                     time.sleep(retry_delay)
             
             try:
                 parsed_response = json.loads(response_text)
-                print(f"Parsed response: {parsed_response}")
                 
                 if "action" in parsed_response:
-                    print("Processing action")
                     self.process_action(parsed_response)
                 elif "answer" in parsed_response:
-                    print("Processing answer")
                     return self.process_answer(parsed_response)
                 else:
-                    print("Invalid response format")
                     self.add_message("system", "Error: Invalid response format")
             
             except json.JSONDecodeError:
-                print("Failed to parse response as JSON")
                 self.add_message("system", "Error: Failed to parse response as JSON")
         
-        print("Max iterations reached without finding an answer")
         return "I apologize, but I couldn't find a satisfactory answer within the given number of iterations."
 
     def create_prompt(self, query: str):

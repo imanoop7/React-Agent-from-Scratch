@@ -15,8 +15,18 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # Set up the model
 model = genai.GenerativeModel('gemini-pro')
 
+def print_callback(event):
+    if event['type'] == 'iteration':
+        print(f"\nIteration {event['number']}")
+    elif event['type'] == 'message':
+        print(f"{event['role'].capitalize()}: {event['content']}")
+    elif event['type'] == 'model_response':
+        print(f"Model response: {event['content']}")
+    elif event['type'] == 'error':
+        print(f"Error: {event['content']}")
+
 # Create the ReAct agent
-agent = ReActAgent(model)
+agent = ReActAgent(model, callback=print_callback)
 
 # Register the DuckDuckGo search and Wikipedia tools
 agent.register_tool("search", duckduckgo_search)
@@ -34,8 +44,6 @@ if __name__ == "__main__":
         try:
             response = agent.run(user_input)
             print(f"ReAct Agent: {response}")
-            print("\nFull conversation history:")
-            print(agent.get_chat_history())
             print("\n" + "="*50 + "\n")
         except google_exceptions.GoogleAPIError as e:
             print(f"ReAct Agent: I'm sorry, but I encountered an error while processing your request. "
